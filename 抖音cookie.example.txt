@@ -1,0 +1,22 @@
+[
+  {
+    "name": "sessionid",
+    "value": "在此粘贴抖音 sessionid",
+    "domain": ".douyin.com"
+  },
+  {
+    "name": "ttwid",
+    "value": "在此粘贴 ttwid",
+    "domain": ".douyin.com"
+  },
+  {
+    "name": "msToken",
+    "value": "在此粘贴 msToken（可选，但建议带上）",
+    "domain": ".douyin.com"
+  },
+  {
+    "name": "odin_tt",
+    "value": "在此粘贴 odin_tt（可选）",
+    "domain": ".douyin.com"
+  }
+]

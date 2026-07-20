@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bili-crawler"
+version = "0.1.0"
+description = "B站（Bilibili）弹幕与评论数据爬取工具：模块化分层架构，支持弹幕/评论采集、批量采集、断点续爬与 Web 控制面板"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "Apache-2.0" }
+authors = [{ name = "BiliCrawler Contributors" }]
+keywords = ["bilibili", "danmaku", "comment", "crawler", "spider", "b站"]
+dependencies = [
+    "requests>=2.31.0",
+    "pyyaml>=6.0",
+    "flask>=3.0.0",
+    "werkzeug>=3.0.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0"]
+
+[project.scripts]
+bili-crawler = "bili_crawler.__main__:main"
+
+[tool.setuptools]
+packages = [
+    "bili_crawler",
+    "bili_crawler.config",
+    "bili_crawler.utils",
+    "bili_crawler.models",
+    "bili_crawler.crawlers",
+    "bili_crawler.exporters",
+    "bili_crawler.web",
+]
+
+[tool.setuptools.package-data]
+bili_crawler = ["web/templates/*.html", "web/static/**/*"]

@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% set active = "export" %}
+{% block title %}数据导出 · B站爬取面板{% endblock %}
+{% block content %}
+  <h1 class="page-title">数据导出</h1>
+  <p class="page-sub">选择已完成任务，导出为 JSON 或 CSV（均带 UTF-8 BOM，Excel 中文不乱码）。</p>
+
+  <div class="card">
+    <div class="section-title">📤 可导出任务</div>
+    <div id="list"><div class="empty">加载中…</div></div>
+  </div>
+{% endblock %}
+{% block scripts %}
+<script>
+  const KIND_TEXT = { danmaku: "弹幕", comment: "评论", batch: "批量" };
+
+  function rowHtml(o) {
+    const isBatch = o.kind === "batch";
+    // 批量任务需要选择导出弹幕还是评论
+    const subSelect = isBatch
+      ? `<select class="exp-sub" data-id="${o.task_id}">
+           <option value="danmaku">弹幕</option>
+           <option value="comment">评论</option>
+         </select>` : "";
+    // 视频标题 / 博主名：大字号、各占一行
+    const titleHtml = o.title ? `<div class="t-title-lg">${App.escapeHtml(o.title)}</div>` : "";
+    const authorHtml = o.author ? `<div class="t-author-lg">博主：${App.escapeHtml(o.author)}</div>` : "";
+    return `<div class="task">
+      <div>
+        ${titleHtml}${authorHtml}
+        <div class="t-meta">类型：${KIND_TEXT[o.kind]||o.kind} · ID：${o.task_id}</div>
+      </div>
+      <div class="t-actions">
+        ${subSelect}
+        <select class="exp-fmt" data-id="${o.task_id}">
+          <option value="json">JSON</option>
+          <option value="csv">CSV</option>
+        </select>
+        <button class="btn sm" onclick="download('${o.task_id}')">下载</button>
+        <button class="btn danger sm" onclick="delExport('${o.task_id}')">删除</button>
+      </div>
+    </div>`;
+  }
+
+  function render(opts) {
+    const box = document.getElementById("list");
+    if (!opts.length) {
+      box.innerHTML = `<div class="empty">暂无已完成任务。请先到「任务队列」完成一次采集。</div>`;
+      return;
+    }
+    box.innerHTML = opts.map(rowHtml).join("");
+  }
+
+  async function download(id) {
+    const fmt = document.querySelector(`.exp-fmt[data-id="${id}"]`).value;
+    const subEl = document.querySelector(`.exp-sub[data-id="${id}"]`);
+    const sub = subEl ? subEl.value : "";
+    const url = `/api/export/${id}?format=${fmt}${sub ? "&sub=" + sub : ""}`;
+    try {
+      const res = await fetch(url);
+      const disp = res.headers.get("Content-Disposition") || "";
+      // 成功：服务端以「附件」形式返回文件（带 Content-Disposition）；
+      // 失败：返回 JSON 错误（无 Content-Disposition）。以此区分，避免把成功的
+      // JSON 导出（Content-Type=application/json）误判成失败。
+      if (!res.ok || !disp) {
+        let msg = `下载失败（HTTP ${res.status}）`;
+        try {
+          const j = await res.json();
+          if (j && j.error) msg = j.error;
+        } catch (_) {}
+        App.toast("❌ " + msg);
+        return;
+      }
+      // 真正的文件：用 Blob 触发下载，文件名取自响应头
+      const blob = await res.blob();
+      const m = disp.match(/filename\*?=(?:UTF-8'')?["']?([^"';]+)/i);
+      const fname = m ? decodeURIComponent(m[1]) : `export_${id}.${fmt}`;
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = fname;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      App.toast("✅ 开始下载…");
+    } catch (e) {
+      App.toast("❌ 网络错误：" + e.message);
+    }
+  }
+
+  async function delExport(id) {
+    if (!confirm("确定从列表移除该任务吗？本地数据文件将保留（已下载的文件也不会被删除）。")) return;
+    try {
+      await App.del(`/api/tasks/${id}?purge=0`);
+      App.toast("已从导出列表移除（本地文件保留）");
+      loadOptions();
+    } catch (e) { App.toast("移除失败：" + e.message); }
+  }
+
+  async function loadOptions() {
+    try {
+      const data = await App.api("/api/export/options");
+      render(data.options || []);
+    } catch (e) { App.toast("加载失败：" + e.message); }
+  }
+
+  loadOptions();
+</script>
+{% endblock %}

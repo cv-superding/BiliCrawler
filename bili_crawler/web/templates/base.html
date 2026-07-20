@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}B站弹幕/评论爬取面板{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="logo">哔</span>
+        <div>弹幕评论采集<small>BiliCrawler · 控制面板</small></div>
+      </div>
+      <nav class="nav">
+        <a href="/video" class="{% if active=='video' %}active{% endif %}">
+          <span class="ico">🎬</span> 视频采集</a>
+        <a href="/batch" class="{% if active=='batch' %}active{% endif %}">
+          <span class="ico">📚</span> 批量采集</a>
+        <a href="/tasks" class="{% if active=='tasks' %}active{% endif %}">
+          <span class="ico">📋</span> 任务队列</a>
+        <a href="/export" class="{% if active=='export' %}active{% endif %}">
+          <span class="ico">📤</span> 数据导出</a>
+      </nav>
+    </aside>
+    <main class="content">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

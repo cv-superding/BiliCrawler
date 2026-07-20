@@ -1,0 +1,22 @@
+[
+  {
+    "name": "SESSDATA",
+    "value": "在此粘贴你浏览器中的 SESSDATA 值（保留 %2C/%3D 等原始 URL 编码，不要解码）",
+    "domain": ".bilibili.com"
+  },
+  {
+    "name": "bili_jct",
+    "value": "在此粘贴 bili_jct 值",
+    "domain": ".bilibili.com"
+  },
+  {
+    "name": "buvid3",
+    "value": "可选，但建议带上以提升稳定性",
+    "domain": ".bilibili.com"
+  },
+  {
+    "name": "DedeUserID",
+    "value": "你的 UID（数字）",
+    "domain": ".bilibili.com"
+  }
+]

@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% set active = "video" %}
+{% block title %}视频数据采集 · B站爬取面板{% endblock %}
+{% block content %}
+  <h1 class="page-title">视频数据采集</h1>
+  <p class="page-sub">输入视频 BV 号或完整链接，选择采集类型，一键发起采集任务。</p>
+
+  <div class="card">
+    <h2>采集参数</h2>
+    <p class="hint">支持 BV 号（如 BV1xx411c7mD）、av 号或完整视频 URL。</p>
+
+    <label for="input">视频 BV 号 / URL / av 号（B站）或视频链接 / aweme_id（抖音）</label>
+    <input type="text" id="input" placeholder="例如：BV1xx411c7mD 或 https://www.douyin.com/video/734xxxx">
+
+    <label for="platform">平台</label>
+    <select id="platform">
+      <option value="bilibili">B 站（弹幕 + 评论）</option>
+      <option value="douyin">抖音（仅评论）</option>
+    </select>
+
+    <label>采集类型</label>
+    <div class="chips" id="types">
+      <label class="chip checked"><input type="checkbox" value="danmaku" checked> 📜 弹幕</label>
+      <label class="chip checked"><input type="checkbox" value="comment" checked> 💬 评论</label>
+    </div>
+    <p class="hint" id="platformHint" style="display:none;"></p>
+
+    <div style="margin-top:22px; display:flex; gap:12px; flex-wrap:wrap;">
+      <button class="btn" id="start">开始采集</button>
+      <button class="btn ghost" id="checkCookie" type="button">检查 Cookie 登录态</button>
+      <a class="btn ghost" href="/tasks">查看任务队列</a>
+    </div>
+    <p class="hint" id="cookieStatus" style="margin-top:12px; display:none;"></p>
+  </div>
+
+  <div class="card">
+    <h2>采集字段说明</h2>
+    <p class="hint">弹幕与评论接口返回字段经统一 snake_case 命名后导出。</p>
+    <ul style="margin:0; padding-left:18px; color:var(--text); font-size:13px; line-height:1.9;">
+      <li><b>弹幕</b>：content 文本、send_time 发送时间、mode 类型、color 颜色、fontsize 字号、progress 视频内位置、uid_hash 用户哈希等。</li>
+      <li><b>评论</b>：content 内容、username/user_id/avatar 用户信息、like 点赞、ctime 时间、parent/root 父/根评论 ID（还原回复树）、vip/ip_location 等。</li>
+      <li>⚠️ 弹幕接口出于隐私仅返回 <code>uid_hash</code>（用户 ID 哈希），明文 UID 请通过评论接口获取。</li>
+    </ul>
+  </div>
+{% endblock %}
+{% block scripts %}
+<script>
+  // chip 选中态切换
+  document.querySelectorAll('#types .chip').forEach(chip => {
+    chip.addEventListener('click', e => {
+      if (e.target.tagName !== 'INPUT') chip.querySelector('input').click();
+    });
+    chip.querySelector('input').addEventListener('change', e => {
+      chip.classList.toggle('checked', e.target.checked);
+    });
+  });
+
+  // 平台切换：抖音仅支持评论，自动禁用弹幕
+  const platformSel = document.getElementById('platform');
+  const danmakuChip = document.querySelector('#types .chip input[value="danmaku"]').closest('.chip');
+  const danmakuInput = document.querySelector('#types .chip input[value="danmaku"]');
+  const platformHint = document.getElementById('platformHint');
+  platformSel.addEventListener('change', () => {
+    const isDouyin = platformSel.value === 'douyin';
+    danmakuInput.disabled = isDouyin;
+    danmakuChip.style.opacity = isDouyin ? '0.4' : '1';
+    if (isDouyin) {
+      danmakuInput.checked = false;
+      danmakuChip.classList.remove('checked');
+      platformSel.parentElement.querySelector('label[for="input"]').textContent = '视频链接 / aweme_id（抖音）';
+      platformHint.style.display = 'block';
+      platformHint.textContent = '抖音视频没有「弹幕」概念，仅支持评论采集。';
+    } else {
+      danmakuInput.checked = true;
+      danmakuChip.classList.add('checked');
+      platformSel.parentElement.querySelector('label[for="input"]').textContent = '视频 BV 号 / URL / av 号（B站）';
+      platformHint.style.display = 'none';
+    }
+  });
+
+  document.getElementById('start').addEventListener('click', async () => {
+    const input = document.getElementById('input').value.trim();
+    const platform = document.getElementById('platform').value;
+    const types = [...document.querySelectorAll('#types input:checked')].map(i => i.value);
+    if (!input) return App.toast(platform === 'douyin' ? '请输入抖音视频链接或 aweme_id' : '请输入 BV 号或视频链接');
+    if (!types.length) return App.toast('请至少选择一种采集类型');
+    const btn = document.getElementById('start');
+    btn.disabled = true;
+    try {
+      await App.post('/api/crawl/video', { input, types, platform });
+      App.toast('任务已创建，正在跳转队列…');
+      setTimeout(() => location.href = '/tasks', 700);
+    } catch (err) {
+      App.toast('提交失败：' + err.message);
+      btn.disabled = false;
+    }
+  });
+
+  // Cookie 自检：按当前所选平台检测登录态
+  document.getElementById('checkCookie').addEventListener('click', async (e) => {
+    const btn = e.target;
+    const status = document.getElementById('cookieStatus');
+    const platform = document.getElementById('platform').value;
+    btn.disabled = true;
+    status.style.display = 'block';
+    status.style.color = 'var(--text)';
+    status.textContent = '正在检测登录态…';
+    try {
+      const r = await App.api('/api/health/cookie?platform=' + encodeURIComponent(platform));
+      const platText = (r.platform === 'douyin') ? '抖音' : 'B站';
+      if (r.ok && r.logged_in) {
+        status.style.color = '#7a8b6f';
+        const who = r.uname ? ('，当前登录账号：' + r.uname) : '';
+        status.textContent = '✓ ' + platText + ' Cookie 有效' + who;
+      } else if (r.ok && !r.logged_in) {
+        status.style.color = '#b06a4f';
+        status.textContent = '✗ ' + (r.detail || (platText + ' Cookie 已失效或未登录，请重新在 config.yaml 填入登录后的完整 Cookie。'));
+      } else {
+        status.style.color = '#b06a4f';
+        status.textContent = '✗ 检测失败：' + (r.error || '未知错误');
+      }
+    } catch (err) {
+      status.style.color = '#b06a4f';
+      status.textContent = '✗ 检测异常：' + err.message;
+    } finally {
+      btn.disabled = false;
+    }
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,36 @@
+# 忽略运行时生成的数据与敏感文件
+data/results/*.json
+data/exports/*
+data/state/*.json
+!data/exports/.gitkeep
+!data/results/.gitkeep
+!data/state/.gitkeep
+
+# Python 缓存
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# 虚拟环境
+venv/
+.venv/
+
+# 用户本地配置（含 Cookie 等敏感信息）
+config.yaml
+
+# 用户本地 Cookie 文件（含真实账号凭据，切勿提交！）
+# 这两个文件由浏览器导出、经 convert_bili_cookie.py / convert_cookie.py 转换后写入 config.yaml。
+# 本仓库只保留同名 .example 占位文件，请按需替换为自己的 Cookie。
+B站cookie.txt
+抖音cookie.txt
+
+# WorkBuddy 项目记忆（非项目代码，勿提交）
+.workbuddy/
+
+# 编辑器 / 系统
+.idea/
+.vscode/
+.DS_Store

@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% set active = "tasks" %}
+{% block title %}任务队列 · B站爬取面板{% endblock %}
+{% block content %}
+  <h1 class="page-title">任务队列</h1>
+  <p class="page-sub">实时展示采集进度与状态，支持暂停 / 恢复 / 取消。页面每 1.5 秒自动刷新。</p>
+
+  <div class="card" style="display:flex; align-items:center; justify-content:space-between;">
+    <div class="section-title">📋 任务列表 <span id="count" style="color:var(--muted); font-weight:400;"></span></div>
+    <div>
+      <button class="btn ghost sm" id="toggle">⏸ 暂停自动刷新</button>
+      <button class="btn ghost sm" id="refresh">↻ 立即刷新</button>
+    </div>
+  </div>
+
+  <div id="list"><div class="empty">加载中…</div></div>
+{% endblock %}
+{% block scripts %}
+<script>
+  let auto = true, timer = null;
+
+  const KIND_TEXT = { danmaku: "弹幕", comment: "评论", batch: "批量" };
+
+  function actionsHtml(t) {
+    const running = t.status === "running";
+    const paused = t.status === "paused";
+    const done = ["completed", "failed", "cancelled"].includes(t.status);
+    let html = "";
+    if (running) html += `<button class="btn warn sm" onclick="ctrl('${t.task_id}','pause')">暂停</button>`;
+    if (paused) html += `<button class="btn sm" onclick="ctrl('${t.task_id}','resume')">恢复</button>`;
+    if (!done) html += `<button class="btn danger sm" onclick="ctrl('${t.task_id}','cancel')">取消</button>`;
+    // 删除：连同本地数据文件一起删除
+    html += `<button class="btn danger sm" onclick="del('${t.task_id}')">删除</button>`;
+    return html;
+  }
+
+  function render(tasks) {
+    const box = document.getElementById("list");
+    document.getElementById("count").textContent = `（共 ${tasks.length} 个）`;
+    if (!tasks.length) { box.innerHTML = `<div class="empty">暂无任务，去「视频采集」或「批量采集」发起吧。</div>`; return; }
+    // 运行中/暂停的排前面
+    const order = { running:0, paused:1, pending:2, completed:3, failed:4, cancelled:5 };
+    tasks.sort((a,b) => (order[a.status] ?? 9) - (order[b.status] ?? 9));
+    box.innerHTML = tasks.map(t => {
+      const pct = t.progress_total ? Math.min(100, t.progress_pct) : (t.status==="completed"?100:0);
+      const log = t.logs && t.logs.length
+        ? `<div class="logs">${App.escapeHtml(t.logs.join("\n"))}</div>` : "";
+      const err = t.error ? `<div class="t-meta" style="color:var(--danger)">错误：${App.escapeHtml(t.error)}</div>` : "";
+      return `<div class="task">
+        <div>
+          <div class="t-name">${App.escapeHtml(t.name)}</div>
+          <div class="t-meta">类型：${KIND_TEXT[t.kind]||t.kind} · 状态：<span class="badge ${t.status}">${App.STATUS_TEXT[t.status]||t.status}</span> · 进度 ${t.progress_current}/${t.progress_total||"?"}${t.finished_at?(" · 结束 "+t.finished_at):""}</div>
+          <div class="progress"><i style="width:${pct}%"></i></div>
+          ${err}${log}
+        </div>
+        <div class="t-actions">${actionsHtml(t)}</div>
+      </div>`;
+    }).join("");
+  }
+
+  async function load() {
+    try {
+      const data = await App.api("/api/tasks");
+      render(data.tasks || []);
+    } catch (e) { /* 忽略瞬时错误 */ }
+  }
+
+  async function ctrl(id, action) {
+    try {
+      await App.post(`/api/tasks/${id}/${action}`);
+      App.toast(action === "cancel" ? "已发送取消信号" : "操作成功");
+      load();
+    } catch (e) { App.toast("操作失败：" + e.message); }
+  }
+
+  async function del(id) {
+    if (!confirm("确定删除该任务吗？将同时删除对应的本地数据文件，且不可恢复。")) return;
+    try {
+      await App.del(`/api/tasks/${id}?purge=1`);
+      App.toast("已删除任务及本地数据文件");
+      load();
+    } catch (e) { App.toast("删除失败：" + e.message); }
+  }
+
+  function loop() { if (auto) load(); }
+
+  document.getElementById("toggle").addEventListener("click", (e) => {
+    auto = !auto;
+    e.target.textContent = auto ? "⏸ 暂停自动刷新" : "▶ 恢复自动刷新";
+    if (auto) load();
+  });
+  document.getElementById("refresh").addEventListener("click", load);
+
+  load();
+  timer = setInterval(loop, 1500);
+</script>
+{% endblock %}

@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+{% set active = "batch" %}
+{% block title %}批量数据采集 · B站爬取面板{% endblock %}
+{% block content %}
+  <h1 class="page-title">批量采集</h1>
+  <p class="page-sub">按 UP 主空间 / 收藏夹 / 合集 / 频道批量采集，支持并发与断点续爬。</p>
+
+  <div class="card">
+    <h2>来源配置</h2>
+    <p class="hint">粘贴对应链接或 ID 即可，系统会按来源类型自动遍历其中的全部视频。</p>
+
+    <label for="source">来源链接 / ID</label>
+    <input type="text" id="source" placeholder="例如：https://space.bilibili.com/123456 或 https://www.douyin.com/user/MS4wLjAB...">
+
+    <label for="platform">平台</label>
+    <select id="platform">
+      <option value="bilibili">B 站（UP主/收藏夹/合集/频道）</option>
+      <option value="douyin">抖音（用户主页 sec_user_id）</option>
+    </select>
+
+    <label for="source_type">来源类型</label>
+    <select id="source_type">
+      <option value="auto">自动识别</option>
+      <option value="space">UP 主空间（遍历全部投稿）</option>
+      <option value="favorites">收藏夹（media_id）</option>
+      <option value="collection">合集（mid + sid）</option>
+      <option value="channel">频道 / 系列（mid + sid）</option>
+    </select>
+
+    <label>采集类型</label>
+    <div class="chips" id="kinds">
+      <label class="chip checked"><input type="checkbox" value="danmaku" checked> 📜 弹幕</label>
+      <label class="chip checked"><input type="checkbox" value="comment" checked> 💬 评论</label>
+    </div>
+    <p class="hint" id="platformHint" style="display:none;"></p>
+
+    <div class="row">
+      <div>
+        <label for="concurrency">并发数</label>
+        <input type="number" id="concurrency" value="3" min="1" max="8">
+      </div>
+      <div>
+        <label for="delay">请求延迟范围（秒）</label>
+        <input type="text" id="delay" value="0.5 - 1.5" disabled
+               title="延迟参数在 config.yaml 的 http 段配置">
+      </div>
+    </div>
+
+    <div style="margin-top:22px; display:flex; gap:12px; flex-wrap:wrap;">
+      <button class="btn" id="start">开始批量采集</button>
+      <button class="btn ghost" id="checkCookie" type="button">检查 Cookie 登录态</button>
+      <a class="btn ghost" href="/tasks">查看任务队列</a>
+    </div>
+    <p class="hint" id="cookieStatus" style="margin-top:12px; display:none;"></p>
+  </div>
+
+  <div class="card">
+    <h2>断点续爬说明</h2>
+    <p class="hint">已采集完成的视频 BV 号会记录在 <code>data/state/</code> 下。中断后重新提交
+    相同来源，将自动跳过已完成的视频，从断点继续。</p>
+  </div>
+{% endblock %}
+{% block scripts %}
+<script>
+  document.querySelectorAll('#kinds .chip').forEach(chip => {
+    chip.addEventListener('click', e => {
+      if (e.target.tagName !== 'INPUT') chip.querySelector('input').click();
+    });
+    chip.querySelector('input').addEventListener('change', e => {
+      chip.classList.toggle('checked', e.target.checked);
+    });
+  });
+
+  // 平台切换：抖音仅支持用户主页 + 评论
+  const platformSel = document.getElementById('platform');
+  const sourceSel = document.getElementById('source_type');
+  const danmakuInput = document.querySelector('#kinds .chip input[value="danmaku"]');
+  const danmakuChip = danmakuInput.closest('.chip');
+  const platformHint = document.getElementById('platformHint');
+  platformSel.addEventListener('change', () => {
+    const isDouyin = platformSel.value === 'douyin';
+    danmakuInput.disabled = isDouyin;
+    danmakuChip.style.opacity = isDouyin ? '0.4' : '1';
+    if (isDouyin) {
+      danmakuInput.checked = false;
+      danmakuChip.classList.remove('checked');
+      // 抖音批量仅支持用户主页
+      sourceSel.innerHTML = '<option value="auto">用户主页（sec_user_id）</option>';
+      document.getElementById('source').placeholder = '例如：https://www.douyin.com/user/MS4wLjAB...';
+      platformHint.style.display = 'block';
+      platformHint.textContent = '抖音批量仅支持「用户主页」，且只采集评论（视频无弹幕）。';
+    } else {
+      danmakuInput.checked = true;
+      danmakuChip.classList.add('checked');
+      sourceSel.innerHTML = `
+        <option value="auto">自动识别</option>
+        <option value="space">UP 主空间（遍历全部投稿）</option>
+        <option value="favorites">收藏夹（media_id）</option>
+        <option value="collection">合集（mid + sid）</option>
+        <option value="channel">频道 / 系列（mid + sid）</option>`;
+      document.getElementById('source').placeholder = '例如：https://space.bilibili.com/123456 或收藏夹/合集/频道链接';
+      platformHint.style.display = 'none';
+    }
+  });
+
+  document.getElementById('start').addEventListener('click', async () => {
+    const source = document.getElementById('source').value.trim();
+    const source_type = document.getElementById('source_type').value;
+    const platform = document.getElementById('platform').value;
+    const kinds = [...document.querySelectorAll('#kinds input:checked')].map(i => i.value);
+    const concurrency = parseInt(document.getElementById('concurrency').value) || 1;
+    if (!source) return App.toast(platform === 'douyin' ? '请输入抖音用户主页或 sec_user_id' : '请输入来源链接或 ID');
+    if (!kinds.length) return App.toast('请至少选择一种采集类型');
+    const btn = document.getElementById('start');
+    btn.disabled = true;
+    try {
+      await App.post('/api/crawl/batch', { source, source_type, kinds, concurrency, platform });
+      App.toast('批量任务已创建，正在跳转队列…');
+      setTimeout(() => location.href = '/tasks', 700);
+    } catch (err) {
+      App.toast('提交失败：' + err.message);
+      btn.disabled = false;
+    }
+  });
+
+  // Cookie 自检（按所选平台检测）
+  document.getElementById('checkCookie').addEventListener('click', async (e) => {
+    const btn = e.target;
+    const status = document.getElementById('cookieStatus');
+    const platform = document.getElementById('platform').value;
+    btn.disabled = true;
+    status.style.display = 'block';
+    status.style.color = 'var(--text)';
+    status.textContent = '正在检测登录态…';
+    try {
+      const r = await App.api('/api/health/cookie?platform=' + encodeURIComponent(platform));
+      const platText = (r.platform === 'douyin') ? '抖音' : 'B站';
+      if (r.ok && r.logged_in) {
+        status.style.color = '#7a8b6f';
+        const who = r.uname ? ('，当前登录账号：' + r.uname) : '';
+        status.textContent = '✓ ' + platText + ' Cookie 有效' + who;
+      } else if (r.ok && !r.logged_in) {
+        status.style.color = '#b06a4f';
+        status.textContent = '✗ ' + (r.detail || (platText + ' Cookie 已失效或未登录，请重新在 config.yaml 填入登录后的完整 Cookie。'));
+      } else {
+        status.style.color = '#b06a4f';
+        status.textContent = '✗ 检测失败：' + (r.error || '未知错误');
+      }
+    } catch (err) {
+      status.style.color = '#b06a4f';
+      status.textContent = '✗ 检测异常：' + err.message;
+    } finally {
+      btn.disabled = false;
+    }
+  });
+</script>
+{% endblock %}

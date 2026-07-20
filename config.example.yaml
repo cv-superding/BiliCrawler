@@ -1,0 +1,65 @@
+# ============================================================
+# B站弹幕与评论数据爬取工具 - 配置文件
+# 复制本文件为 config.yaml 后按需修改（config.yaml 不会被提交到仓库）
+# ============================================================
+
+http:
+  # 请求延迟范围（秒）：自适应限速会在此区间内随机休眠。
+  # B站评论接口对高频极敏感，建议 2~4 秒（参考成熟项目 BiliSpider），别贪快。
+  delay_min: 2.0
+  delay_max: 4.0
+  # 单次请求超时时间（秒）
+  timeout: 15
+  # 最大重试次数（触发 412/429/5xx 时指数退避，最多 3 次）
+  max_retries: 3
+  # 指数退避基数（秒）：第 n 次重试休眠 ≈ base * 2^n
+  backoff_base: 1.0
+  # 批量采集并发数（同时爬取的视频数量）：评论采集建议保持 1（单线程），并发是触发风控的头号原因。
+  concurrency: 1
+  # 代理地址（可选，如 "http://127.0.0.1:7890"），留空则不开启。
+  # B站当前对单账号/单IP风控极严，走代理可切换出口 IP；如代理反而更糟可改回 "" 关闭。
+  proxy: ""
+  # 业务风控（-403/-412/-509 等）分级冷却：触发后暂停 throttle_pause_base 秒再重试，
+  # 每次翻倍但上限 600 秒（10 分钟），连续 throttle_max_pauses 次仍失败才放弃该任务。
+  # 5 次最大总等待约 34 分钟（120+240+480+600+600），应对 B站较长时间的账号 cooldown。
+  throttle_max_pauses: 5
+  throttle_pause_base: 120.0
+
+user_agent:
+  # 是否启用随机 User-Agent 轮换
+  rotate: true
+  # 自定义 UA 池（留空则使用内置默认池）
+  pool: []
+
+cookie:
+  # 登录后的 Cookie 字符串（可选）
+  # 获取方式：浏览器登录 B站 -> F12 -> Network -> 任意请求 ->
+  #           Request Headers -> Cookie，整段复制粘贴到下方引号内
+  # 填写后可提升采集上限、降低被风控概率
+  session: ""
+  # Cookie 有效天数，超过后首次请求会提示刷新
+  expire_days: 30
+  # 抖音 Cookie（可选）：抖音与 B站账号体系独立，需单独填入（sessionid / ttwid / msToken 等）。
+  # 留空时仍可尝试游客模式采集（部分视频受限）。
+  douyin: ""
+
+douyin:
+  # 签名方式：x-bogus（纯 Python 内置，默认）| 如需更强稳定性可启用 a_bogus
+  signer: "x-bogus"
+  # 是否额外追加 a_bogus 签名（需自备 Node.js 签名脚本，见 js/douyin_sign_worker.js）
+  with_a_bogus: false
+  # a_bogus worker 脚本路径（留空则使用默认 js/douyin_sign_worker.js）
+  a_bogus_worker: ""
+
+export:
+  # 导出文件（JSON/CSV）默认保存目录
+  output_dir: "data/exports"
+  # 单个任务原始数据落盘目录（供导出页再次转换）
+  raw_dir: "data/results"
+  # 断点续爬状态目录（记录已采集视频 ID）
+  state_dir: "data/state"
+
+web:
+  host: "127.0.0.1"
+  port: 5000
+  debug: false
