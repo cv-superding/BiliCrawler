@@ -1,0 +1,15 @@
+services:
+  bili-crawler:
+    build: .
+    container_name: bili-crawler
+    ports:
+      - "5000:5000"
+    environment:
+      # 让容器外（宿主机 / 局域网）也能访问 Web 面板
+      - BILI_WEB_HOST=0.0.0.0
+      - BILI_WEB_PORT=5000
+    volumes:
+      # 挂载本地真实配置（含 Cookie）与数据目录；按需改为你的路径
+      - ./config.yaml:/app/config.yaml:ro
+      - ./data:/app/data
+    restart: unless-stopped

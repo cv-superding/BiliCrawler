@@ -113,4 +113,16 @@ def load_settings(path: str | None = None) -> Settings:
             export[key] = _normalize_path(export[key], _PROJECT_ROOT)
     data["export"] = export
 
+    # 环境变量可覆盖 Web 监听地址（便于 Docker / 容器化部署）
+    web_cfg = data.setdefault("web", {})
+    env_host = os.environ.get("BILI_WEB_HOST")
+    if env_host:
+        web_cfg["host"] = env_host
+    env_port = os.environ.get("BILI_WEB_PORT")
+    if env_port:
+        try:
+            web_cfg["port"] = int(env_port)
+        except ValueError:
+            pass
+
     return Settings(data)

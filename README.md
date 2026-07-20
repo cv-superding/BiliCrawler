@@ -80,7 +80,7 @@ Bili-Crawl danmaku&comments/
 要求 **Python ≥ 3.9**。
 
 ```bash
-# 1. 克隆仓库（把 <你的用户名> 换成你的 GitHub 用户名）
+# 1. 克隆仓库
 git clone https://github.com/cv-superding/BiliCrawler.git
 cd BiliCrawler
 
@@ -95,6 +95,31 @@ cp config.example.yaml config.yaml     # Windows: copy config.example.yaml confi
 # 4.（可选）以可编辑模式安装，获得 bili-crawler 命令
 pip install -e .
 ```
+
+### 5. 使用 Docker 部署（免装 Python 环境，适合长驻 / 服务器）
+
+项目已提供 `Dockerfile` 与 `docker-compose.yml`，并支持用环境变量覆盖 Web 监听地址，**无需在宿主机装 Python**。
+
+1. 准备配置（含你的 Cookie）：
+   - 本地已有 `config.yaml`：直接挂载即可；
+   - 全新克隆：先 `cp config.example.yaml config.yaml`，填入 Cookie。
+2. 启动（推荐 Compose）：
+   ```bash
+   docker compose up -d --build
+   ```
+   或纯 Docker 命令：
+   ```bash
+   docker build -t bili-crawler .
+   docker run -d --name bili-crawler -p 5000:5000 \
+     -e BILI_WEB_HOST=0.0.0.0 \
+     -v "$PWD/config.yaml:/app/config.yaml:ro" \
+     -v "$PWD/data:/app/data" \
+     bili-crawler
+   ```
+3. 浏览器打开 `http://<服务器IP>:5000` 即可使用四个页面。
+
+> ⚠️ **安全**：镜像构建时通过 `.dockerignore` 已排除 `config.yaml`、两个 Cookie 文件与 `.workbuddy/`，**不会把你的凭据烤进镜像**。请务必用 `-v` 挂载本地真实的 `config.yaml`（含 Cookie）与 `data/`，不要把凭据写进镜像或提交仓库。
+> **监听地址**：容器内默认沿用配置里的 `web.host`；可用 `BILI_WEB_HOST` / `BILI_WEB_PORT` 环境变量覆盖（如 `BILI_WEB_HOST=0.0.0.0` 让容器外也能访问）。
 
 > 依赖仅 `requests` / `pyyaml` / `flask` / `werkzeug`，均为成熟轻量库。
 

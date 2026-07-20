@@ -1,0 +1,28 @@
+# ===== 凭据与本地配置（绝不进镜像）=====
+config.yaml
+B站cookie.txt
+抖音cookie.txt
+
+# 示例凭据模板也无需进镜像
+B站cookie.example.txt
+抖音cookie.example.txt
+
+# 项目记忆（非项目代码）
+.workbuddy/
+
+# 运行时数据（用 volume 挂载到宿主机）
+data/
+
+# Python 缓存 / 虚拟环境
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+
+# Git
+.git/
+
+# 编辑器 / 系统
+.idea/
+.vscode/
+.DS_Store
